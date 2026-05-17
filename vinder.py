@@ -1764,17 +1764,7 @@ def _fb_resolve_url(url):
         return url
     try:
         logger.info(f"[FB] Resolve share URL: {mask_url(url)}")
-        
-        # Penambahan headers untuk bypass deteksi bot saat resolve URL
-        headers = {
-            "User-Agent": META_UA,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Dest": "document",
-        }
-        
-        r = session.head(url, headers=headers, allow_redirects=True, timeout=10)
+        r = session.head(url, allow_redirects=True, timeout=10)
         resolved = r.url
         logger.info(f"[FB] Resolved -> {mask_url(resolved)}")
         return resolved
@@ -1798,7 +1788,6 @@ def _fb_get_info(url):
             'noplaylist':  True,
             'proxy':       _YTDLP_PROXY if _YTDLP_PROXY else None,
             'user_agent':  META_UA,
-            'impersonate': 'chrome', # Penambahan impersonate TLS
         }
         if _FB_COOKIES_FILE and os.path.exists(_FB_COOKIES_FILE):
             ydl_opts['cookiefile'] = _FB_COOKIES_FILE
@@ -1814,6 +1803,7 @@ def _fb_get_info(url):
         author  = info.get('uploader') or info.get('channel') or 'Facebook'
         dur_sec = int(info.get('duration') or 0)
 
+        # Pilih format sweet spot: ada height (= ada video), bukan audio-only, resolusi <= 1080p
         video_url = None
         formats = info.get('formats') or []
         video_formats = [
@@ -1828,6 +1818,7 @@ def _fb_get_info(url):
             video_url = best.get('url')
             logger.info(f"[FB] Sweet spot format: {best.get('height')}p | vcodec={best.get('vcodec')} | acodec={best.get('acodec')}")
         else:
+            # Fallback: url default dari info (biasanya merged best)
             video_url = info.get('url') or (
                 (info.get('formats') or [{}])[-1].get('url')
             )
@@ -1855,6 +1846,8 @@ def _fb_download_video(url, out_mp4):
     Download video Facebook ke out_mp4 via yt-dlp dengan merge video+audio.
     Facebook pakai DASH (video & audio stream terpisah), yt-dlp handle merge otomatis.
     Target: bestvideo[height<=720]+bestaudio — sweet spot ~15-30MB.
+
+    Hybrid Fallback: coba tanpa proxy dulu, kalau gagal baru pakai proxy.
     """
     url = _fb_resolve_url(url)
 
@@ -1868,7 +1861,6 @@ def _fb_download_video(url, out_mp4):
             'proxy':       _YTDLP_PROXY if (use_proxy and _YTDLP_PROXY) else None,
             'merge_output_format': 'mp4',
             'user_agent':  META_UA,
-            'impersonate': 'chrome', # Penambahan impersonate TLS
         }
         if _FB_COOKIES_FILE and os.path.exists(_FB_COOKIES_FILE):
             opts['cookiefile'] = _FB_COOKIES_FILE
@@ -1891,6 +1883,7 @@ def _fb_download_video(url, out_mp4):
         size_mb = os.path.getsize(out_mp4) / 1024 / 1024
         logger.info(f"[FB] Download selesai: {size_mb:.2f} MB -> {out_mp4}")
 
+    # --- Percobaan pertama: tanpa proxy (IP server langsung) ---
     logger.info(f"[FB] Download video via yt-dlp tanpa proxy: {mask_url(url)}")
     try:
         with yt_dlp.YoutubeDL(_build_opts(use_proxy=False)) as ydl:
@@ -1900,6 +1893,7 @@ def _fb_download_video(url, out_mp4):
     except Exception as e:
         logger.info(f"[FB] Download video tanpa proxy gagal ({type(e).__name__}: {e}), fallback ke proxy...")
 
+    # --- Fallback: gunakan proxy ---
     if not _YTDLP_PROXY:
         raise RuntimeError("Gagal download video Facebook dan tidak ada proxy terkonfigurasi.")
     logger.info(f"[FB] Fallback proxy aktif untuk download video: {mask_url(url)}")
@@ -1912,6 +1906,8 @@ def _fb_download_audio(url, out_mp3):
     """
     Download audio Facebook via yt-dlp + FB cookies (primary).
     Fallback ke facebook-scraper + ffmpeg pipe kalau yt-dlp gagal.
+
+    Hybrid Fallback Proxy: coba tanpa proxy dulu, kalau gagal baru pakai proxy.
     """
     def _build_opts(use_proxy):
         opts = {
@@ -1928,7 +1924,6 @@ def _fb_download_audio(url, out_mp3):
             }],
             'keepvideo': False,
             'user_agent':  META_UA,
-            'impersonate': 'chrome', # Penambahan impersonate TLS
         }
         if _FB_COOKIES_FILE and os.path.exists(_FB_COOKIES_FILE):
             opts['cookiefile'] = _FB_COOKIES_FILE
@@ -1956,6 +1951,7 @@ def _fb_download_audio(url, out_mp3):
                 return
             raise RuntimeError("File audio tidak ditemukan setelah yt-dlp selesai.")
 
+    # --- PRIMARY: yt-dlp tanpa proxy dulu ---
     logger.info(f"[FB] Download audio via yt-dlp tanpa proxy: {mask_url(url)}")
     try:
         with yt_dlp.YoutubeDL(_build_opts(use_proxy=False)) as ydl:
@@ -1965,6 +1961,7 @@ def _fb_download_audio(url, out_mp3):
     except Exception as e:
         logger.info(f"[FB] yt-dlp audio tanpa proxy gagal ({type(e).__name__}: {e}), coba fallback proxy...")
 
+    # --- Fallback proxy: yt-dlp dengan proxy ---
     if _YTDLP_PROXY:
         logger.info(f"[FB] Fallback proxy aktif untuk audio: {mask_url(url)}")
         try:
@@ -1975,6 +1972,7 @@ def _fb_download_audio(url, out_mp3):
         except Exception as e:
             logger.warning(f"[FB] yt-dlp audio dengan proxy juga gagal ({type(e).__name__}: {e}), coba fallback scraper+ffmpeg...")
 
+    # --- FALLBACK: facebook-scraper + ffmpeg pipe ---
     info = _fb_get_info(url)
     video_url = info.get('video_url')
     if not video_url:
@@ -1983,10 +1981,6 @@ def _fb_download_audio(url, out_mp3):
     logger.info(f"[FB] Pipe audio ke ffmpeg dari: {mask_url(video_url)}")
     headers = TIKTOK_HEADERS.copy()
     headers["Range"] = "bytes=0-"
-    
-    # Menambahkan impersonate layer ke header requests biasa 
-    # (Opsional jika ingin menipu sistem FB saat stream langsung)
-    headers["User-Agent"] = META_UA
 
     bitrate = detect_audio_bitrate(video_url, headers)
 
