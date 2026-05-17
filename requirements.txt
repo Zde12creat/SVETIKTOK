@@ -1,7 +1,6 @@
 Flask
 Flask-Cors
 yt-dlp
-curl_cffi==0.5.10
 requests
 gevent
 gunicorn
