@@ -1085,6 +1085,103 @@
       color: var(--muted2);
     }
 
+    /* ===== FEAT POPUP MODAL ===== */
+    .feat-popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 3000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .feat-popup-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .feat-popup-box {
+      background: #131313;
+      border: 1px solid var(--border-bright);
+      border-radius: 18px;
+      padding: 28px 24px 24px;
+      width: 100%;
+      max-width: 380px;
+      position: relative;
+      transform: translateY(16px) scale(0.97);
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.9);
+    }
+    .feat-popup-overlay.open .feat-popup-box {
+      transform: translateY(0) scale(1);
+    }
+    .feat-popup-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #1e1e1e;
+      border: 1px solid var(--border-bright);
+      color: var(--muted2);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: background 0.15s, color 0.15s;
+      line-height: 1;
+    }
+    .feat-popup-close:hover {
+      background: #2a2a2a;
+      color: var(--text);
+    }
+    .feat-popup-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+    .feat-popup-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+    .feat-popup-body {
+      font-size: 13px;
+      color: var(--muted2);
+      line-height: 1.7;
+    }
+    .feat-popup-body strong {
+      color: #c0c0c0;
+      font-weight: 600;
+    }
+    .feat-popup-tag {
+      display: inline-block;
+      margin-top: 14px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+    .feat-popup-tag.blue  { color: #60a5fa; border-color: rgba(37,99,235,0.45); background: rgba(37,99,235,0.08); }
+    .feat-popup-tag.purple { color: #c084fc; border-color: rgba(147,51,234,0.45); background: rgba(147,51,234,0.08); }
+    .feat-popup-tag.green { color: #4ade80; border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.07); }
+    .feat-popup-tag.amber { color: #fbbf24; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.07); }
+
     /* ===== TICKER ===== */
     .ticker-wrap {
       overflow: hidden;
@@ -1346,25 +1443,25 @@
 
     <div class="features-grid">
 
-      <div class="feat-card glow-blue">
+      <div class="feat-card glow-blue" onclick="openFeatModal('hype')" style="cursor:pointer;">
         <div class="feat-icon">⚡</div>
         <div class="feat-title">HYPE Engine</div>
         <div class="feat-desc">Teknologi unduh generasi baru — resolusi tak terbatas, kecepatan penuh.</div>
       </div>
 
-      <div class="feat-card glow-purple">
+      <div class="feat-card glow-purple" onclick="openFeatModal('nowm')" style="cursor:pointer;">
         <div class="feat-icon">✨</div>
         <div class="feat-title">No Watermark</div>
         <div class="feat-desc">Video bersih tanpa logo atau tanda air dari platform manapun.</div>
       </div>
 
-      <div class="feat-card glow-green">
+      <div class="feat-card glow-green" onclick="openFeatModal('extract')" style="cursor:pointer;">
         <div class="feat-icon">🎵</div>
         <div class="feat-title">MP3/MP4 Extract</div>
         <div class="feat-desc">Ekstrak audio langsung ke MP3 berkualitas tinggi dari video apapun.</div>
       </div>
 
-      <div class="feat-card glow-amber">
+      <div class="feat-card glow-amber" onclick="openFeatModal('noad')" style="cursor:pointer;">
         <div class="feat-icon">🚫</div>
         <div class="feat-title">TANPA IKLAN</div>
         <div class="feat-desc">Langsung pakai tanpa daftar, tanpa akun, tanpa ribet.</div>
@@ -1392,7 +1489,16 @@
 
   </section>
 
-  <!-- ===== FOOTER ===== -->
+  <!-- ===== FEAT POPUP MODAL ===== -->
+  <div class="feat-popup-overlay" id="feat-popup-overlay" onclick="handleFeatOverlayClick(event)">
+    <div class="feat-popup-box" id="feat-popup-box">
+      <button class="feat-popup-close" onclick="closeFeatModal()">✕</button>
+      <div class="feat-popup-icon" id="feat-popup-icon"></div>
+      <div class="feat-popup-title" id="feat-popup-title"></div>
+      <div class="feat-popup-body" id="feat-popup-body"></div>
+      <span class="feat-popup-tag" id="feat-popup-tag"></span>
+    </div>
+  </div>
   <footer class="site-footer">
     <div class="footer-top">
       <div class="footer-brand">
@@ -2131,6 +2237,62 @@
         btn.disabled = false;
         btn.textContent = selectedFormat === 'mp3' ? '⬇ Download MP3' : '⬇ Download MP4';
       }
+    }
+  }
+
+  /* ===== FEAT POPUP MODAL ===== */
+  const FEAT_DATA = {
+    hype: {
+      icon: '⚡',
+      title: 'HYPE Engine — Apa Itu?',
+      body: `<strong>HYPE Engine</strong> adalah teknologi download eksklusif Vinder yang dirancang buat ngambil video di resolusi <strong>tertinggi yang tersedia</strong> — termasuk 1080p, 2K, bahkan 4K — tanpa kompromi kualitas.<br><br>Dibandingkan mode standar yang nge-cap di 720p, HYPE Engine langsung nyambung ke source asli konten, jadi hasil download jauh lebih tajam dan jernih.<br><br>Aktifkan dengan pilih <strong>"HYPE v1.3"</strong> di dropdown resolusi sebelum download.`,
+      tag: '⚡ HYPE v1.3 · Aktif',
+      tagClass: 'blue'
+    },
+    nowm: {
+      icon: '✨',
+      title: 'No Watermark — Bersih Total',
+      body: `Setiap platform punya kebiasaan nempel logo atau watermark di video yang kamu download. <strong>Vinder melewati semua itu.</strong><br><br>Hasil download dari TikTok, Instagram, Facebook — semuanya <strong>tanpa logo platform, tanpa tanda air</strong>, langsung ke file bersih yang siap dipakai, di-repost, atau disimpan.<br><br>Tidak ada proses tambahan atau edit manual yang perlu kamu lakuin.`,
+      tag: '✨ Clean Output',
+      tagClass: 'purple'
+    },
+    extract: {
+      icon: '🎵',
+      title: 'MP3/MP4 Extract',
+      body: `Vinder bukan cuma video downloader. Dengan mode <strong>MP3</strong>, kamu bisa langsung ekstrak audio dari video manapun — YouTube, TikTok, Instagram — dan dapet file <strong>.mp3 berkualitas tinggi</strong> tanpa software tambahan.<br><br>Cukup toggle ke <strong>MP3</strong> di card Download URL sebelum klik download. Prosesnya berjalan di background, kamu bisa tetap pakai app-nya.<br><br>Cocok buat simpan OST, podcast, atau lagu favorit dari video.`,
+      tag: '🎵 MP3 · MP4 Ready',
+      tagClass: 'green'
+    },
+    noad: {
+      icon: '🚫',
+      title: 'Tanpa Iklan, Tanpa Akun',
+      body: `Vinder <strong>100% bebas iklan</strong>. Tidak ada banner, tidak ada pop-up, tidak ada redirect aneh. Langsung ke fitur, langsung download.<br><br>Selain itu, kamu <strong>tidak perlu daftar atau login</strong>. Buka, tempel link, download — selesai. Data kamu tidak dikumpulkan, tidak ada tracking, tidak ada akun yang harus dijaga.<br><br>Vinder dibuat buat pengguna, bukan buat ngiklan ke pengguna.`,
+      tag: '🚫 Ad-Free Forever',
+      tagClass: 'amber'
+    }
+  };
+
+  function openFeatModal(key) {
+    const data = FEAT_DATA[key];
+    if (!data) return;
+    document.getElementById('feat-popup-icon').textContent = data.icon;
+    document.getElementById('feat-popup-title').textContent = data.title;
+    document.getElementById('feat-popup-body').innerHTML = data.body;
+    const tag = document.getElementById('feat-popup-tag');
+    tag.textContent = data.tag;
+    tag.className = 'feat-popup-tag ' + data.tagClass;
+    document.getElementById('feat-popup-overlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeFeatModal() {
+    document.getElementById('feat-popup-overlay').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function handleFeatOverlayClick(e) {
+    if (e.target === document.getElementById('feat-popup-overlay')) {
+      closeFeatModal();
     }
   }
 
