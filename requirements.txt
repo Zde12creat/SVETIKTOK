@@ -1,6 +1,6 @@
 Flask
 Flask-Cors
-yt-dlp
+yt-dlp[curl-cffi]
 requests
 gevent
 gunicorn
