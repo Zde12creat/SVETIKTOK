@@ -1,6 +1,6 @@
 Flask
 Flask-Cors
-yt-dlp
+Yt-dlp>=2025.5.1
 requests
 gevent
 gunicorn
