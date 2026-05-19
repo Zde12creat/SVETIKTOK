@@ -1503,9 +1503,8 @@ def get_mp3_api():
 @limiter.limit('15 per minute')
 def fast_mp3_api():
     """
-    FAST MP3 - Vinder Cyber Stream Copy Edition
-    Menggabungkan taktik kecepatan kilat svetiktok ke dalam ekosistem Vinder.
-    - TikTok: Nol re-encode CPU, async stream biner via pipe:1 (Format ADTS/AAC).
+    FAST MP3 - Vinder Hybrid Stream Stable Edition
+    - TikTok: Re-encode kilat via libmp3lame ke pipe:1 (Format MP3 Tulen, Anti-Bug).
     - Non-TikTok: Tetap menggunakan hybrid engine yt-dlp/scraper bawaan Vinder.
     """
     import tempfile
@@ -1533,7 +1532,7 @@ def fast_mp3_api():
         final_title = title
 
         if is_tiktok:
-            # ─── STRATEGI GAIB SVETIKTOK: KHUSUS TIKTOK ───
+            # ─── STRATEGI HYBRID STABIL: NO DISK SCRATCH + MP3 NATIVE ───
             if is_short:
                 tiktok_url = resolve_tiktok_url(tiktok_url)
 
@@ -1546,19 +1545,21 @@ def fast_mp3_api():
             if tikwm_title:
                 final_title = tikwm_title
 
-            # Bersihkan judul agar aman digunakan sebagai nama file OS
+            # Bersihkan judul agar aman untuk OS file system
             clean_title = re.sub(r'[^\w\-_.]', '_', final_title)[:80]
             filename = f"[Vinder]_{clean_title}.mp3"
 
-            # Tembak langsung biner asli lewat FFmpeg stream demuxing pipe ke output browser
+            # Re-encode kilat di memori langsung dilempar ke pipe browser (Beban CPU minim & Hasil MP3 Tulen)
             ffmpeg_cmd = [
                 'ffmpeg',
                 '-hide_banner',
                 '-loglevel', 'error',
                 '-i', video_url,
                 '-vn',
-                '-c:a', 'copy',
-                '-f', 'adts',
+                '-acodec', 'libmp3lame',  # Mengunci format MP3 murni agar tidak korup di semua HP
+                '-ab', '128k',             # Bitrate standar seimbang (kenceng + jernih)
+                '-ar', '44100',
+                '-f', 'mp3',              # Memaksa output container MP3 tulen
                 'pipe:1'
             ]
             
@@ -1568,7 +1569,7 @@ def fast_mp3_api():
                 stderr=subprocess.DEVNULL
             )
 
-            # Generator async chunk 64KB - Beban CPU Nol & Tidak nyampah di SSD server!
+            # Generator chunk 64KB - Mengalir langsung lewat memori RAM, Anti-Nyampah di SSD!
             def generate_stream_copy():
                 try:
                     while True:
@@ -1583,7 +1584,7 @@ def fast_mp3_api():
             return Response(
                 stream_with_context(generate_stream_copy()),
                 headers={
-                    'Content-Type': 'audio/aac',
+                    'Content-Type': 'audio/mpeg',  # Header wajib untuk format MP3 murni
                     'Content-Disposition': make_content_disposition(filename),
                     'Cache-Control': 'no-cache'
                 }
