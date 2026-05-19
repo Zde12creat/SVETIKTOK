@@ -1503,30 +1503,26 @@ def get_mp3_api():
 @limiter.limit('15 per minute')
 def fast_mp3_api():
     """
-    FAST MP3 - El Kedips Edition (Maximum Speed)
-    Optimasi:
-    1. TikTok: skip yt-dlp, langsung TikWM (hemat 1-2 detik)
-    2. Resolve URL + TikWM call paralel (hemat 0.5-1 detik)
-    3. Cover: 1 ffmpeg command tanpa ffprobe (hemat 0.5 detik)
-       - Seek ke 50% durasi via -sseof trick
-    4. Cover + audio encode paralel (threading)
+    FAST MP3 - Vinder Cyber Stream Copy Edition
+    Menggabungkan taktik kecepatan kilat svetiktok ke dalam ekosistem Vinder.
+    - TikTok: Nol re-encode CPU, async stream biner via pipe:1 (Format ADTS/AAC).
+    - Non-TikTok: Tetap menggunakan hybrid engine yt-dlp/scraper bawaan Vinder.
     """
-    import tempfile, threading
+    import tempfile
+    import subprocess
 
     if request.method == 'POST':
         data       = request.get_json(force=True) or {}
         tiktok_url = data.get('url', '').strip()
-        title      = data.get('title', 'audio')
+        title      = data.get('title', 'audio').strip()
     else:
         tiktok_url = request.args.get('url', '').strip()
-        title      = request.args.get('title', 'audio')
-
-    # kirim_notif(f"User download MP3: {tiktok_url}")
+        title      = request.args.get('title', 'audio').strip()
 
     if not tiktok_url:
         return "URL Kosong", 400
 
-    # FIX #3: Cek SSRF dan platform whitelist sebelum fetch apapun
+    # Validasi SSRF dan whitelist platform bawaan Vinder
     if not is_safe_external_url(tiktok_url) or not is_supported_url(tiktok_url):
         return "URL tidak valid atau platform tidak didukung.", 400
 
@@ -1534,70 +1530,70 @@ def fast_mp3_api():
     is_tiktok = is_short or 'tiktok.com' in tiktok_url
 
     try:
-        audio_url   = None
-        video_url   = None
         final_title = title
 
         if is_tiktok:
-            # Resolve short URL dulu
+            # ─── STRATEGI GAIB SVETIKTOK: KHUSUS TIKTOK ───
             if is_short:
                 tiktok_url = resolve_tiktok_url(tiktok_url)
 
-            # Selalu fetch langsung ke TikWM - tanpa cache
-            logger.info(f"[FETCH] Ambil metadata video: {mask_url(tiktok_url)}")
-            vid_url, _, tikwm_title = get_meta_via_tikwm(tiktok_url, for_audio=True)
-            video_url   = vid_url
-            audio_url   = vid_url
-            final_title = tikwm_title or title
-
-            if not audio_url:
+            logger.info(f"[FAST_MP3] Ambil biner audio TikTok langsung via TikWM: {mask_url(tiktok_url)}")
+            video_url, _, tikwm_title = get_meta_via_tikwm(tiktok_url, for_audio=True)
+            
+            if not video_url:
                 return "Gagal mengambil URL audio dari TikTok.", 500
 
-            _fd, tmp_base = tempfile.mkstemp(prefix='vinder_fast_')
-            os.close(_fd)
-            os.remove(tmp_base)
-            out_mp3 = tmp_base + '.mp3'
+            if tikwm_title:
+                final_title = tikwm_title
 
-            download_audio_direct(audio_url, out_mp3)
+            # Bersihkan judul agar aman digunakan sebagai nama file OS
+            clean_title = re.sub(r'[^\w\-_.]', '_', final_title)[:80]
+            filename = f"[Vinder]_{clean_title}.mp3"
 
-            if not os.path.exists(out_mp3):
-                return "Gagal memproses audio, silakan coba lagi.", 500
+            # Tembak langsung biner asli lewat FFmpeg stream demuxing pipe ke output browser
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-hide_banner',
+                '-loglevel', 'error',
+                '-i', video_url,
+                '-vn',
+                '-c:a', 'copy',
+                '-f', 'adts',
+                'pipe:1'
+            ]
+            
+            proc = subprocess.Popen(
+                ffmpeg_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL
+            )
 
-            filename  = f"[Vinder].{safe_filename(final_title)}.mp3"
-            file_size = os.path.getsize(out_mp3)
-
-            def generate_tiktok_mp3():
+            # Generator async chunk 64KB - Beban CPU Nol & Tidak nyampah di SSD server!
+            def generate_stream_copy():
                 try:
-                    with open(out_mp3, 'rb') as f:
-                        while True:
-                            chunk = f.read(512 * 1024)
-                            if not chunk:
-                                break
-                            yield chunk
+                    while True:
+                        chunk = proc.stdout.read(1024 * 64)
+                        if not chunk:
+                            break
+                        yield chunk
                 finally:
-                    try:
-                        os.remove(out_mp3)
-                    except Exception:
-                        pass
+                    proc.stdout.close()
+                    proc.wait()
 
             return Response(
-                stream_with_context(generate_tiktok_mp3()),
+                stream_with_context(generate_stream_copy()),
                 headers={
-                    'Content-Type':        'audio/mpeg',
+                    'Content-Type': 'audio/aac',
                     'Content-Disposition': make_content_disposition(filename),
-                    'Cache-Control':       'no-cache',
-                    'Content-Length':      str(file_size),
+                    'Cache-Control': 'no-cache'
                 }
             )
 
         else:
-            # Non-TikTok (Instagram, Facebook): pakai engine masing-masing
-            # Instagram: yt-dlp (masih jalan)
-            # Facebook: facebook-scraper
+            # ─── STRATEGI BAWAAN VINDER: UNTUK NON-TIKTOK (IG/FB) ───
             is_fb = any(x in tiktok_url for x in ['facebook.com', 'fb.watch'])
 
-            import tempfile as _tempfile
-            _fd2, tmp_base2 = _tempfile.mkstemp(prefix='vinder_fb_' if is_fb else 'vinder_ig_')
+            _fd2, tmp_base2 = tempfile.mkstemp(prefix='vinder_fb_' if is_fb else 'vinder_ig_')
             os.close(_fd2)
             os.remove(tmp_base2)
             out_mp3_yt = tmp_base2 + '.mp3'
@@ -1611,8 +1607,7 @@ def fast_mp3_api():
                 if _IG_COOKIES_FILE and os.path.exists(_IG_COOKIES_FILE):
                     _ydl_opts_ig_fast['cookiefile'] = _IG_COOKIES_FILE
                     logger.info("[IG] fast_mp3 yt-dlp info pakai cookies Instagram.")
-                else:
-                    logger.warning("[IG] fast_mp3 tidak ada cookies Instagram — mungkin gagal.")
+                
                 with yt_dlp.YoutubeDL(_ydl_opts_ig_fast) as ydl:
                     info_yt     = ydl.extract_info(tiktok_url, download=False)
                     final_title = (info_yt or {}).get('title', title)
@@ -1649,7 +1644,6 @@ def fast_mp3_api():
             )
 
     except Exception as e:
-        # FIX #6: Sembunyikan detail error dari user
         logger.error(f"fast_mp3 error: {e}")
         return "Terjadi kesalahan saat memproses audio. Silakan coba lagi.", 500
 
